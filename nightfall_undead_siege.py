@@ -9,7 +9,7 @@ import random
 # ═══════════════════════════════════════════════════════════
 WIN_W, WIN_H   = 1000, 800
 GRID           = 600
-DAY_DURATION   = 600
+DAY_DURATION   = 1200
 NIGHT_DURATION = 900
 BULLET_SPEED   = 20.0
 BULLET_LIFE    = 90
@@ -17,7 +17,7 @@ BULLET_DAMAGE  = 2          # bullets hit harder (was 1)
 SPAWN_INTERVAL = 60
 POWERUP_LIFE   = 500
 SUN_RADIUS     = 800
-SUN_PEAK_Z     = 700
+SUN_PEAK_Z     = 900
 
 RAIN_WAVES     = {2, 4, 6, 8, 10}   # even waves have rain
 NUM_RAIN_DROPS = 300
@@ -249,11 +249,12 @@ def _draw_tree(q, rx, ry, seed):
     for layer, (r, h, z) in enumerate(layers):
         glPushMatrix()
         glTranslatef(0, 0, z)
-        if wave < 3:   glColor3f(0.08+layer*0.04, 0.38-layer*0.05, 0.08)
-        elif wave < 6: glColor3f(0.42-layer*0.05, 0.28-layer*0.03, 0.04)
-        else:          glColor3f(0.18-layer*0.02, 0.07, 0.07)
+        if wave < 3:   cr,cg,cb = 0.08+layer*0.04, 0.38-layer*0.05, 0.08
+        elif wave < 6: cr,cg,cb = 0.42-layer*0.05, 0.28-layer*0.03, 0.04
+        else:          cr,cg,cb = 0.18-layer*0.02, 0.07, 0.07
         if is_rain_wave():
-            glColor3f(*(c*0.7 for c in glGetFloatv(GL_CURRENT_COLOR)[:3]))
+            cr *= 0.7; cg *= 0.7; cb *= 0.7
+        glColor3f(cr, cg, cb)
         gluCylinder(q, r, 0, h, 8, 1)
         glPopMatrix()
     glPopMatrix()
@@ -309,13 +310,19 @@ def draw_sun_moon():
     ang = math.pi*t
     sx  = SUN_RADIUS*(t-0.5)
     sz  = SUN_PEAK_Z*math.sin(ang)
-    glPushMatrix()
-    glTranslatef(sx, -GRID*0.8, max(sz, 5))
+    # Only draw when the sphere is fully above the ground
     if wave_phase == "DAY":
-        glColor3f(1.0,0.95,0.60); glutSolidSphere(60,16,16)
-        glColor3f(1.0,0.90,0.50); glutWireSphere(75,10,10)
+        if sz < 65: return   # sun radius 60 + buffer
     else:
-        glColor3f(0.88,0.88,0.76); glutSolidSphere(38,16,16)
+        if sz < 42: return   # moon radius 38 + buffer
+    glPushMatrix()
+    glTranslatef(sx, -GRID*0.8, sz)
+    if wave_phase == "DAY":
+        glColor3f(1.0,0.95,0.60); gluSphere(gluNewQuadric(),60,16,16)
+        q_w=gluNewQuadric(); gluQuadricDrawStyle(q_w,GLU_LINE)
+        glColor3f(1.0,0.90,0.50); gluSphere(q_w,75,10,10)
+    else:
+        glColor3f(0.88,0.88,0.76); gluSphere(gluNewQuadric(),38,16,16)
     glPopMatrix()
 
 # ═══════════════════════════════════════════════════════════
@@ -333,7 +340,7 @@ def draw_player():
     # Invincible glow ring
     if invincible:
         glColor3f(0.8,0.8,0.0)
-        glutWireSphere(45,12,12)
+        q_w=gluNewQuadric(); gluQuadricDrawStyle(q_w,GLU_LINE); gluSphere(q_w,45,12,12)
 
     # Boots
     for sx in (-9,9):
@@ -360,8 +367,8 @@ def draw_player():
     # Shoulders
     for sx in (-20,20):
         glPushMatrix(); glTranslatef(sx,0,48)
-        glColor3f(0.12,0.12,0.14); glutSolidSphere(10,8,8)
-        glColor3f(0.0,0.85,1.0); glutWireSphere(10.5,6,6)
+        glColor3f(0.12,0.12,0.14); gluSphere(gluNewQuadric(),10,8,8)
+        glColor3f(0.0,0.85,1.0); q_w=gluNewQuadric(); gluQuadricDrawStyle(q_w,GLU_LINE); gluSphere(q_w,10.5,6,6)
         glPopMatrix()
     # Arms
     for sx in (-20,20):
@@ -375,7 +382,7 @@ def draw_player():
         glPopMatrix()
     # Helmet
     glPushMatrix(); glTranslatef(0,0,60)
-    glColor3f(0.10,0.10,0.12); glutSolidSphere(14,12,12)
+    glColor3f(0.10,0.10,0.12); gluSphere(gluNewQuadric(),14,12,12)
     glTranslatef(0,-12,-2); glColor3f(1.0,0.45,0.0)
     glScalef(1.1,0.25,0.55); glutSolidCube(18)
     glPopMatrix()
@@ -446,10 +453,10 @@ def draw_zombie(e):
         glPopMatrix()
     glPushMatrix(); glTranslatef(0,0,30)
     glColor3f(*skin); gluCylinder(q,5,4,10,8,1)
-    glTranslatef(0,0,10); glutSolidSphere(13,10,10)
+    glTranslatef(0,0,10); gluSphere(gluNewQuadric(),13,10,10)
     eye_col=(1.0,0.3,0.0) if kind in ('boss1','boss2') else (0.7,1.0,0.1)
     for ex in (-5,5):
-        glPushMatrix(); glTranslatef(ex,-11,1); glColor3f(*eye_col); glutSolidSphere(2.8,6,6); glPopMatrix()
+        glPushMatrix(); glTranslatef(ex,-11,1); glColor3f(*eye_col); gluSphere(gluNewQuadric(),2.8,6,6); glPopMatrix()
     if kind in ('boss1','boss2'):
         for hx in (-9,9):
             glPushMatrix(); glTranslatef(hx,0,10); glColor3f(0.12,0.04,0.04); gluCylinder(q,3.5,0.4,20,6,1); glPopMatrix()
@@ -471,7 +478,7 @@ def _draw_hp_bar(x,y,z,hp,max_hp):
     glPopMatrix()
 
 # ═══════════════════════════════════════════════════════════
-#  WALLS — sturdier (hp=8) and longer (100 wide)
+#  MEAT BARRICADES — sturdier (hp=8) and longer (100 wide)
 # ═══════════════════════════════════════════════════════════
 WALL_HP  = 8
 WALL_W   = 100   # was 80
@@ -481,11 +488,12 @@ def draw_walls():
         glPushMatrix()
         glTranslatef(w[0],w[1],0); glRotatef(w[2],0,0,1)
         ratio = w[3]/WALL_HP
-        glColor3f(0.55*ratio+0.15, 0.38*ratio+0.10, 0.18*ratio+0.05)
-        solid_cuboid(WALL_W,14,60)
-        glColor3f(0.28,0.18,0.07)
-        for pz in (12,32,52):
-            glPushMatrix(); glTranslatef(0,-8,pz); solid_cuboid(WALL_W,3,4); glPopMatrix()
+        # Small meat cube — reddish pink, darkens as HP drops
+        glColor3f(0.75*ratio+0.15, 0.20*ratio+0.08, 0.15*ratio+0.05)
+        solid_cuboid(30,30,30)
+        # Fat/marbling streak
+        glColor3f(0.90,0.80,0.55)
+        glPushMatrix(); glTranslatef(0,-16,15); solid_cuboid(28,2,3); glPopMatrix()
         glPopMatrix()
 
 # ═══════════════════════════════════════════════════════════
@@ -500,7 +508,7 @@ def draw_powerups():
             glColor3f(0.9,0.1,0.3)
             solid_cuboid(6,24,9); solid_cuboid(24,6,9)
         elif p[2]=='speed':
-            glColor3f(0.1,0.6,1.0); glutSolidSphere(12,12,12)
+            glColor3f(0.1,0.6,1.0); gluSphere(gluNewQuadric(),12,12,12)
             glColor3f(1.0,1.0,0.2); glTranslatef(0,0,12)
             gluCylinder(gluNewQuadric(),6,0,14,8,1)
         elif p[2]=='build':
@@ -530,7 +538,7 @@ def spawn_wave_powerups():
 def draw_bullets():
     for b in bullets:
         glPushMatrix(); glTranslatef(b[0],b[1],b[2])
-        glColor3f(1.0,0.85,0.10); glutSolidSphere(4,8,8)
+        glColor3f(1.0,0.85,0.10); gluSphere(gluNewQuadric(),4,8,8)
         glColor3f(1.0,0.40,0.05)
         glBegin(GL_LINES); glVertex3f(0,0,0); glVertex3f(-b[3]*3,-b[4]*3,0); glEnd()
         glPopMatrix()
@@ -538,7 +546,7 @@ def draw_bullets():
 def draw_boss_proj():
     for p in boss_proj:
         glPushMatrix(); glTranslatef(p[0],p[1],p[2])
-        glColor3f(1.0,0.20,0.80); glutSolidSphere(8,8,8)
+        glColor3f(1.0,0.20,0.80); gluSphere(gluNewQuadric(),8,8,8)
         glPopMatrix()
 
 # ═══════════════════════════════════════════════════════════
@@ -551,7 +559,7 @@ def draw_hud():
     draw_text(12,WIN_H-50, f"Base HP: {base_hp}/{base_max}",             color=(0.4,0.9,1.0))
     draw_text(12,WIN_H-74, f"Player HP: {player_hp}/{player_max_hp}",    color=(0.3,1.0,0.4))
     draw_text(12,WIN_H-98, f"Score: {score}",                            color=(1.0,1.0,1.0))
-    draw_text(12,WIN_H-122,f"Walls: {len(walls)}/{wall_cap}  (budget: {wood})", color=(0.9,0.6,0.2))
+    draw_text(12,WIN_H-122,f"Meat: {len(walls)}/{wall_cap}  (budget: {wood})", color=(0.9,0.6,0.2))
     if invincible:
         draw_text(12,WIN_H-146,"[INVINCIBLE CHEAT ON]",                  color=(1.0,1.0,0.0))
     if speed_boost_timer>0:
@@ -661,6 +669,11 @@ def place_wall():
 def _clamp_player():
     player_pos[0]=max(-GRID+20,min(GRID-20,player_pos[0]))
     player_pos[1]=max(-GRID+20,min(GRID-20,player_pos[1]))
+    # Prevent entering the tower
+    dist=math.sqrt(player_pos[0]**2+player_pos[1]**2)
+    if dist<75 and dist>0:
+        factor=75/dist
+        player_pos[0]*=factor; player_pos[1]*=factor
 
 def advance_wave():
     global wave,wave_phase,phase_timer,enemies_to_spawn,score,wood
@@ -783,7 +796,7 @@ def game_logic():
             continue
         hit=False
         for e in enemies[:]:
-            if math.sqrt((b[0]-e['x'])**2+(b[1]-e['y'])**2)<22*KIND_SCALE[e['kind']]:
+            if math.sqrt((b[0]-e['x'])**2+(b[1]-e['y'])**2)<max(22*KIND_SCALE[e['kind']],18):
                 e['hp']-=BULLET_DAMAGE
                 if b in bullets: bullets.remove(b)
                 hit=True
@@ -861,8 +874,8 @@ def keyboard(key,x,y):
 
     # ── GAME OVER ──
     if game_state=="GAME_OVER":
-        if key==b'r': reset_game()
-        elif key==b'm': game_state="MENU"; menu_sel=0
+        if key==b'r' or key==b'R': reset_game()
+        elif key==b'm' or key==b'M': game_state="MENU"; menu_sel=0
         return
 
     # ── PLAYING ──
@@ -921,16 +934,25 @@ def mouse_motion(mx,my):
         glutWarpPointer(WIN_W//2,WIN_H//2)
     glutPostRedisplay()
 
+# Fixed timestep — runs game_logic at ~60fps regardless of monitor refresh rate
+TARGET_FPS  = 60
+FRAME_TIME  = 1000 // TARGET_FPS    # ~16 ms
+last_frame_time = 0
+
 def idle():
-    game_logic()
-    glutPostRedisplay()
+    global last_frame_time
+    current_time = glutGet(GLUT_ELAPSED_TIME)
+    if current_time - last_frame_time >= FRAME_TIME:
+        last_frame_time = current_time
+        game_logic()
+        glutPostRedisplay()
 
 # ═══════════════════════════════════════════════════════════
 #  INIT & MAIN
 # ═══════════════════════════════════════════════════════════
 def init():
     glEnable(GL_DEPTH_TEST)
-    glShadeModel(GL_SMOOTH)
+
 
 def main():
     glutInit()
