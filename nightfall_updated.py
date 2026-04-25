@@ -26,6 +26,7 @@ NUM_RAIN_DROPS = 300
 #  GAME STATE
 # ═══════════════════════════════════════════════════════════
 game_state  = "MENU"          # MENU | DIFFICULTY | PLAYING | GAME_OVER
+is_paused   = False
 difficulty  = "NORMAL"        # EASY | NORMAL
 menu_sel    = 0               # 0=Play, 1=Quit  (main menu)
 diff_sel    = 0               # 0=Easy, 1=Normal
@@ -47,9 +48,9 @@ cam_angle_h = 0.0
 cam_angle_v = 40.0
 cam_radius  = 900.0
 
-# Bullets / walls / enemies
+# Bullets / meats / enemies
 bullets   = []
-walls     = []
+meats     = []
 enemies   = []
 base_hp   = 10
 base_max  = 10
@@ -66,7 +67,7 @@ spawn_timer      = 0
 score = 0
 wood  = 5
 kills = 0
-wall_cap = 5          # starts at 5; building powerup raises this
+meat_cap = 5          # starts at 5; building powerup raises this
 
 # Power-ups  [x, y, kind, age]
 powerups = []
@@ -138,6 +139,12 @@ def draw_text(x, y, text, font=GLUT_BITMAP_HELVETICA_18, color=(1,1,1)):
 # ═══════════════════════════════════════════════════════════
 #  SOLID CUBOID  
 # ═══════════════════════════════════════════════════════════
+def solid_cube(size):
+    glPushMatrix()
+    glTranslatef(0, 0, -size/2)
+    solid_cuboid(size, size, size)
+    glPopMatrix()
+
 def solid_cuboid(w, d, h):
     hw, hd = w/2, d/2
     glBegin(GL_QUADS)
@@ -382,6 +389,7 @@ def draw_player():
 
     q = gluNewQuadric()
 
+    # Invincible glow ring
     if invincible:
         glColor3f(0.8,0.8,0.0)
         q_w=gluNewQuadric(); gluQuadricDrawStyle(q_w,GLU_LINE); gluSphere(q_w,45,12,12)
@@ -397,13 +405,13 @@ def draw_player():
         glColor3f(0.08,0.08,0.10); gluCylinder(q,6,5,22,8,1)
         glTranslatef(0,-5,10); glColor3f(0.0,0.85,1.0); solid_cuboid(10,4,5)
         glPopMatrix()
-    # Torso
+    # Hips
     glPushMatrix(); glTranslatef(0,0,29)
-    glColor3f(0.15,0.15,0.18); solid_cuboid(32,18,11)
+    glColor3f(0.15,0.15,0.18); glScalef(1.0,0.55,0.35); solid_cube(32)
     glPopMatrix()
-    # Chest armour
+    # Torso
     glPushMatrix(); glTranslatef(0,0,34)
-    glColor3f(0.10,0.10,0.12); solid_cuboid(36,20,37)
+    glColor3f(0.10,0.10,0.12); glScalef(1.05,0.58,1.1); solid_cube(34)
     glColor3f(0.0,0.85,1.0)
     for zoff in (6,14):
         glPushMatrix(); glTranslatef(0,-11,zoff-17); solid_cuboid(30,2,2); glPopMatrix()
@@ -411,24 +419,26 @@ def draw_player():
     # Shoulders
     for sx in (-20,20):
         glPushMatrix(); glTranslatef(sx,0,48)
-        glColor3f(0.12,0.12,0.14); gluSphere(q,10,8,8)
+        glColor3f(0.12,0.12,0.14); gluSphere(gluNewQuadric(),10,8,8)
         glColor3f(0.0,0.85,1.0); q_w=gluNewQuadric(); gluQuadricDrawStyle(q_w,GLU_LINE); gluSphere(q_w,10.5,6,6)
         glPopMatrix()
+    # Arms
     for sx in (-20,20):
         glPushMatrix(); glTranslatef(sx,0,42)
         glColor3f(0.10,0.10,0.12); gluCylinder(q,5,4,18,8,1)
         glPopMatrix()
+    # Gloves
     for sx in (-20,20):
         glPushMatrix(); glTranslatef(sx,0,42)
         glColor3f(0.05,0.05,0.06); solid_cuboid(10,10,8)
         glPopMatrix()
-    # Head
+    # Helmet
     glPushMatrix(); glTranslatef(0,0,60)
-    glColor3f(0.10,0.10,0.12); gluSphere(q,14,12,12)
+    glColor3f(0.10,0.10,0.12); gluSphere(gluNewQuadric(),14,12,12)
     glTranslatef(0,-12,-2); glColor3f(1.0,0.45,0.0)
-    solid_cuboid(20,5,10)   # visor
+    glScalef(1.1,0.25,0.55); solid_cube(18)
     glPopMatrix()
-    # Gun
+    # Machine gun
     glPushMatrix(); glTranslatef(15,-8,44); glRotatef(90,1,0,0)
     glColor3f(0.12,0.12,0.12); gluCylinder(q,5,4,65,10,1)
     glColor3f(0.18,0.18,0.18); gluCylinder(q,7,7,30,10,1)
@@ -483,7 +493,7 @@ def draw_zombie(e):
         glPopMatrix()
     # Torso
     glPushMatrix(); glTranslatef(0,0,27); glRotatef(-30,1,0,0)
-    glColor3f(*skin); solid_cuboid(29,15,32)   # replaces glutSolidCube(30)
+    glColor3f(*skin); glScalef(0.95,0.50,1.05); solid_cube(30)
     glColor3f(skin[0]*0.6,skin[1]*0.6,skin[2]*0.6)
     for rib in range(3):
         glPushMatrix(); glTranslatef(0,-9,rib*6-4); solid_cuboid(24,3,3); glPopMatrix()
@@ -498,15 +508,15 @@ def draw_zombie(e):
     # Head
     glPushMatrix(); glTranslatef(0,0,30)
     glColor3f(*skin); gluCylinder(q,5,4,10,8,1)
-    glTranslatef(0,0,10); gluSphere(q,13,10,10)
+    glTranslatef(0,0,10); gluSphere(gluNewQuadric(),13,10,10)
     eye_col=(1.0,0.3,0.0) if kind in ('boss1','boss2') else (0.7,1.0,0.1)
     for ex in (-5,5):
-        glPushMatrix(); glTranslatef(ex,-11,1); glColor3f(*eye_col); gluSphere(q,2.8,6,6); glPopMatrix()
+        glPushMatrix(); glTranslatef(ex,-11,1); glColor3f(*eye_col); gluSphere(gluNewQuadric(),2.8,6,6); glPopMatrix()
     if kind in ('boss1','boss2'):
         for hx in (-9,9):
             glPushMatrix(); glTranslatef(hx,0,10); glColor3f(0.12,0.04,0.04); gluCylinder(q,3.5,0.4,20,6,1); glPopMatrix()
     if kind=='boss2':
-        glTranslatef(0,-11,-2); glColor3f(0.85,0.85,0.75); solid_cuboid(16,4,13)  # jaw plate
+        glTranslatef(0,-11,-2); glColor3f(0.85,0.85,0.75); glScalef(0.9,0.2,0.7); solid_cube(18)
     glPopMatrix(); glPopMatrix()
     glPopMatrix()
     _draw_hp_bar(e['x'],e['y'],e['z']+90*sc,e['hp'],e['max_hp'])
@@ -525,14 +535,14 @@ def _draw_hp_bar(x,y,z,hp,max_hp):
 # ═══════════════════════════════════════════════════════════
 #  MEAT BARRICADES
 # ═══════════════════════════════════════════════════════════
-WALL_HP  = 8
-WALL_W   = 100   
+MEAT_HP  = 8
+MEAT_W   = 100   
 
-def draw_walls():
-    for w in walls:
+def draw_meats():
+    for w in meats:
         glPushMatrix()
         glTranslatef(w[0],w[1],0); glRotatef(w[2],0,0,1)
-        ratio = w[3]/WALL_HP
+        ratio = w[3]/MEAT_HP
         glColor3f(0.75*ratio+0.15, 0.20*ratio+0.08, 0.15*ratio+0.05)
         solid_cuboid(30,30,30)
         glColor3f(0.90,0.80,0.55)
@@ -554,7 +564,7 @@ def draw_powerups():
             glColor3f(0.1,0.6,1.0); gluSphere(gluNewQuadric(),12,12,12)
             glColor3f(1.0,1.0,0.2); glTranslatef(0,0,12)
             gluCylinder(gluNewQuadric(),6,0,14,8,1)
-        elif p[2]=='build':
+        elif p[2]=='meat':
             glColor3f(0.9,0.75,0.1); solid_cuboid(20,20,20)
             glColor3f(0.5,0.35,0.0)
             solid_cuboid(20,3,3); solid_cuboid(3,20,3)
@@ -563,7 +573,7 @@ def draw_powerups():
 
 def spawn_wave_powerups():
     count = random.randint(2,3)
-    kinds = ['health','speed','build']
+    kinds = ['health','speed','meat']
     for _ in range(count):
         x = random.uniform(-GRID*0.65, GRID*0.65)
         y = random.uniform(-GRID*0.65, GRID*0.65)
@@ -628,7 +638,7 @@ def draw_hud():
     draw_text(12,WIN_H-50, f"Base HP: {base_hp}/{base_max}",             color=(0.4,0.9,1.0))
     draw_text(12,WIN_H-74, f"Player HP: {player_hp}/{player_max_hp}",    color=(0.3,1.0,0.4))
     draw_text(12,WIN_H-98, f"Score: {score}",                            color=(1.0,1.0,1.0))
-    draw_text(12,WIN_H-122,f"Meat: {len(walls)}/{wall_cap}  (budget: {wood})", color=(0.9,0.6,0.2))
+    draw_text(12,WIN_H-122,f"Meat: {len(meats)}/{meat_cap}  (budget: {wood})", color=(0.9,0.6,0.2))
     
     if invincible:
         draw_text(12,WIN_H-146,"[INVINCIBLE CHEAT ON]",                  color=(1.0,1.0,0.0))
@@ -649,18 +659,21 @@ def draw_hud():
         draw_text(WIN_W//2-100,WIN_H-26,f"Night in: {rem//60+1}s",      color=(1.0,0.7,0.2))
         draw_text(WIN_W//2-100,WIN_H-50,"Fortify & grab pickups!",       color=(0.8,0.5,0.1))
         if pending_powerups:
-            names = {'health':'HP+2','speed':'Speed','build':'Build'}
+            names = {'health':'HP+2','speed':'Speed','meat':'Build'}
             queued = ', '.join(names.get(k,k) for k in pending_powerups)
             draw_text(WIN_W//2-100,WIN_H-74,f"Queued for night: {queued}", color=(0.4,1.0,0.6))
     else:
         draw_text(WIN_W//2-100,WIN_H-26,f"Enemies left: {enemies_to_spawn+len(enemies)}", color=(1.0,0.3,0.3))
 
     cam_hint = "C:toggle 1st/3rd-person"
-    draw_text(12,14,f"WASD:move  LClick:shoot  E:wall  X:Ultimate  I:invincible  {cam_hint}",
+    draw_text(12,14,f"WASD:move  LClick:shoot  E:meat  X:Ultimate  I:invincible  {cam_hint}",
               font=GLUT_BITMAP_HELVETICA_12,color=(0.6,0.6,0.6))
 
     if first_person:
         draw_text(WIN_W//2-4,WIN_H//2-8,"+",color=(0.0,1.0,0.4))
+
+    if is_paused:
+        draw_text(WIN_W//2-40, WIN_H//2+40, "PAUSED", font=GLUT_BITMAP_TIMES_ROMAN_24, color=(1.0, 1.0, 0.2))
 
     glEnable(GL_DEPTH_TEST)
 
@@ -688,7 +701,7 @@ def draw_difficulty_menu():
               font=GLUT_BITMAP_TIMES_ROMAN_24,color=(1.0,0.85,0.2))
 
     descs = [
-        ("  Easy",   "Extra base walls, weaker enemies, same powerups"),
+        ("  Easy",   "Extra base meats, weaker enemies, same powerups"),
         ("  Normal", "Standard challenge — no extra defences"),
     ]
     for i,(label,desc) in enumerate(descs):
@@ -738,12 +751,12 @@ def fire_bullet():
     bx=player_pos[0]+50*math.cos(rad); by=player_pos[1]+50*math.sin(rad)
     bullets.append([bx,by,35, BULLET_SPEED*math.cos(rad),BULLET_SPEED*math.sin(rad),0])
 
-def place_wall():
+def place_meat():
     global wood
-    if wood<=0 or len(walls)>=wall_cap: return
+    if wood<=0 or len(meats)>=meat_cap: return
     rad=math.radians(player_angle-90)
-    walls.append([player_pos[0]+80*math.cos(rad),player_pos[1]+80*math.sin(rad),
-                  player_angle, WALL_HP])
+    meats.append([player_pos[0]+80*math.cos(rad),player_pos[1]+80*math.sin(rad),
+                  player_angle, MEAT_HP])
     wood-=1
 
 def _clamp_player():
@@ -757,29 +770,30 @@ def _clamp_player():
 def advance_wave():
     global wave,wave_phase,phase_timer,enemies_to_spawn,score,wood
     wave+=1; wave_phase="DAY"; phase_timer=0
-    score+=wave*10; wood=min(wood+2,wall_cap)
+    score+=wave*10; wood=min(wood+2,meat_cap)
     if is_rain_wave(): init_rain()
     spawn_wave_powerups()
 
 def reset_game():
     global player_pos,player_angle,player_hp,player_speed
-    global bullets,walls,enemies,powerups,boss_proj
+    global bullets,meats,enemies,powerups,boss_proj
     global wave,wave_phase,phase_timer,enemies_to_spawn,spawn_timer
     global score,wood,kills,base_hp,speed_boost_timer,speed_boost_dur
-    global game_state,first_person,invincible,wall_cap,rain_drops
+    global game_state,first_person,invincible,meat_cap,rain_drops
     global ult_cooldown, ult_active, ult_anim_timer, ult_fires
-    global pending_powerups
+    global pending_powerups, is_paused
 
     player_pos=[0.0,-200.0,20.0]; player_angle=0.0
     player_hp=5; player_speed=9.0
-    bullets=[]; walls=[]; enemies=[]; powerups=[]; boss_proj=[]
+    bullets=[]; meats=[]; enemies=[]; powerups=[]; boss_proj=[]
     wave=1; wave_phase="DAY"; phase_timer=0
     enemies_to_spawn=0; spawn_timer=0
     score=0; wood=5; kills=0; base_hp=10
     speed_boost_timer=0; speed_boost_dur=0
-    first_person=False; invincible=False; wall_cap=5
+    first_person=False; invincible=False; meat_cap=5
     rain_drops=[]; pending_powerups=[]
     game_state="PLAYING"
+    is_paused=False
     
     ult_cooldown = 0
     ult_active = False
@@ -793,7 +807,7 @@ def reset_game():
 # ═══════════════════════════════════════════════════════════
 def _find_target(e):
     best_d=float('inf'); best_w=None
-    for w in walls:
+    for w in meats:
         d=math.sqrt((w[0]-e['x'])**2+(w[1]-e['y'])**2)
         if d<best_d: best_d=d; best_w=w
     if best_w and best_d<200: return best_w[0],best_w[1]
@@ -804,11 +818,11 @@ def _find_target(e):
 def game_logic():
     global phase_timer,wave_phase,enemies_to_spawn,spawn_timer
     global player_hp,base_hp,score,kills,wood
-    global speed_boost_timer,game_state,wall_cap
+    global speed_boost_timer,game_state,meat_cap
     global ult_cooldown, ult_active, ult_anim_timer
     global pending_powerups
 
-    if game_state!="PLAYING": return
+    if game_state!="PLAYING" or is_paused: return
 
     if ult_cooldown > 0:
         ult_cooldown -= 1
@@ -824,7 +838,7 @@ def game_logic():
                 if e['hp'] <= 0:
                     score += KIND_PTS[e['kind']]
                     kills += 1
-                    if kills % 5 == 0: wood = min(wood + 1, wall_cap)
+                    if kills % 5 == 0: wood = min(wood + 1, meat_cap)
                     enemies.remove(e)
 
     for f in ult_fires[:]:
@@ -845,8 +859,8 @@ def game_logic():
                     player_hp=min(player_hp+2,player_max_hp)
                 elif kind=='speed':
                     speed_boost_timer=1000
-                elif kind=='build':
-                    wall_cap=min(wall_cap+1,8); wood=min(wood+2,wall_cap)
+                elif kind=='meat':
+                    meat_cap=min(meat_cap+1,8); wood=min(wood+2,meat_cap)
             pending_powerups=[]
     else:
         spawn_timer+=1
@@ -872,11 +886,11 @@ def game_logic():
             e['x']+=spd*dx/dist; e['y']+=spd*dy/dist
         e['atk_timer']+=1
 
-        for w in walls[:]:
+        for w in meats[:]:
             wd=math.sqrt((w[0]-e['x'])**2+(w[1]-e['y'])**2)
             if wd<58 and e['atk_timer']>=70:
                 w[3]-=1; e['atk_timer']=0
-                if w[3]<=0: walls.remove(w)
+                if w[3]<=0: meats.remove(w)
                 break
 
         pd=math.sqrt((player_pos[0]-e['x'])**2+(player_pos[1]-e['y'])**2)
@@ -916,7 +930,7 @@ def game_logic():
                 hit=True
                 if e['hp']<=0:
                     score+=KIND_PTS[e['kind']]; kills+=1
-                    if kills%5==0: wood=min(wood+1,wall_cap)
+                    if kills%5==0: wood=min(wood+1,meat_cap)
                     enemies.remove(e)
                 break
         if hit: continue
@@ -930,7 +944,7 @@ def game_logic():
             else:
                 if p[2]=='health':   player_hp=min(player_hp+2,player_max_hp)
                 elif p[2]=='speed':  speed_boost_timer=1000
-                elif p[2]=='build':  wall_cap=min(wall_cap+1,8); wood=min(wood+2,wall_cap)
+                elif p[2]=='meat':  meat_cap=min(meat_cap+1,8); wood=min(wood+2,meat_cap)
             powerups.remove(p); continue
         if p[3]>POWERUP_LIFE: powerups.remove(p)
 
@@ -954,7 +968,7 @@ def display():
         draw_boss_lightning()
         draw_floor()
         draw_forest_boundary(); draw_base()
-        draw_walls()
+        draw_meats()
         for e in enemies: draw_zombie(e)
         draw_player()
         draw_bullets(); draw_boss_proj(); draw_powerups()
@@ -972,6 +986,7 @@ def keyboard(key,x,y):
     global player_angle,player_pos,first_person,game_state
     global menu_sel,diff_sel,difficulty,invincible
     global ult_active, ult_anim_timer, ult_cooldown
+    global is_paused
 
     if game_state=="MENU":
         if key==b'\r':
@@ -990,6 +1005,13 @@ def keyboard(key,x,y):
         elif key==b'm' or key==b'M': game_state="MENU"; menu_sel=0
         return
 
+    if game_state=="PLAYING" and (key==b'p' or key==b'P'):
+        is_paused = not is_paused
+        glutPostRedisplay()
+        return
+
+    if is_paused: return
+
     sp=player_speed
     rad=math.radians(player_angle-90)
 
@@ -1006,7 +1028,7 @@ def keyboard(key,x,y):
         player_pos[0]+=sp*math.sin(rad); player_pos[1]-=sp*math.cos(rad)
         _clamp_player()
     elif key==b'e':
-        place_wall()
+        place_meat()
     elif key==b'x' or key==b'X':
         if ult_cooldown <= 0 and not ult_active:
             ult_active = True
@@ -1036,13 +1058,13 @@ def special_key(key,x,y):
     glutPostRedisplay()
 
 def mouse_click(button,state,x,y):
-    if game_state=="PLAYING" and button==GLUT_LEFT_BUTTON and state==GLUT_DOWN:
+    if game_state=="PLAYING" and not is_paused and button==GLUT_LEFT_BUTTON and state==GLUT_DOWN:
         fire_bullet()
     glutPostRedisplay()
 
 def mouse_motion(mx,my):
     global player_angle
-    if game_state!="PLAYING": return
+    if game_state!="PLAYING" or is_paused: return
     dx=mx-WIN_W//2
     if dx!=0:
         player_angle-=dx*mouse_sensitivity
