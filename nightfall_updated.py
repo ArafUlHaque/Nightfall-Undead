@@ -73,7 +73,6 @@ powerups = []
 
 # Speed-boost
 speed_boost_timer = 0
-speed_boost_dur   = 0
 
 # Pending powerups collected during DAY phase (applied when night starts)
 pending_powerups = []
@@ -98,6 +97,7 @@ sky_day   = (0.45, 0.70, 1.00)
 sky_night = (0.02, 0.02, 0.10)
 sky_dusk  = (0.80, 0.35, 0.10)
 sky_rain  = (0.30, 0.35, 0.40)
+boss_flash_timer = 0   # counts frames; flashes every 30 frames when boss active
 
 # ═══════════════════════════════════════════════════════════
 #  WAVE SPAWN TABLE
@@ -162,11 +162,16 @@ def is_rain_wave():
     return wave in RAIN_WAVES
 
 def sky_color():
+    global boss_flash_timer
     boss_active = any(e['kind'] in ('boss1', 'boss2') for e in enemies)
-    
-    # Boss er shomoy akash ektuporpor lal/purple flash korbe (Buzzing Light)
-    if boss_active and random.random() < 0.15:
-        return (0.7, 0.1, 0.2) if random.random() < 0.5 else (0.5, 0.1, 0.6)
+
+    # Flash sky every 30 frames when a boss is alive (not every frame)
+    if boss_active:
+        boss_flash_timer += 1
+        if boss_flash_timer % 30 == 0:
+            return (0.7, 0.1, 0.2) if (boss_flash_timer // 30) % 2 == 0 else (0.5, 0.1, 0.6)
+    else:
+        boss_flash_timer = 0
 
     if is_rain_wave() and wave_phase == "NIGHT":
         return sky_rain
@@ -349,11 +354,12 @@ def draw_base():
 
 def draw_sun_moon():
     dur = DAY_DURATION if wave_phase=="DAY" else NIGHT_DURATION
-    t   = phase_timer/dur
-    ang = math.pi*t
-    sx  = SUN_RADIUS*(t-0.5)
-    sz  = SUN_PEAK_Z*math.sin(ang)
-    
+    t   = phase_timer / dur
+    sz  = SUN_PEAK_Z * math.sin(math.pi * t)
+    sx  = SUN_RADIUS * (t - 0.5)
+    # Skip drawing when the body is below or at the horizon
+    if wave_phase == "DAY"  and sz < 65: return   # sun radius 60 + buffer
+    if wave_phase == "NIGHT" and sz < 42: return   # moon radius 38 + buffer
     glPushMatrix()
     glTranslatef(sx, -GRID*0.8, sz)
     if wave_phase == "DAY":
@@ -380,27 +386,32 @@ def draw_player():
         glColor3f(0.8,0.8,0.0)
         q_w=gluNewQuadric(); gluQuadricDrawStyle(q_w,GLU_LINE); gluSphere(q_w,45,12,12)
 
+    # Boots
     for sx in (-9,9):
         glPushMatrix(); glTranslatef(sx,2,0)
         glColor3f(0.10,0.10,0.12); solid_cuboid(12,14,8)
         glPopMatrix()
+    # Legs
     for sx in (-9,9):
         glPushMatrix(); glTranslatef(sx,0,8)
         glColor3f(0.08,0.08,0.10); gluCylinder(q,6,5,22,8,1)
         glTranslatef(0,-5,10); glColor3f(0.0,0.85,1.0); solid_cuboid(10,4,5)
         glPopMatrix()
+    # Torso
     glPushMatrix(); glTranslatef(0,0,29)
-    glColor3f(0.15,0.15,0.18); glScalef(1.0,0.55,0.35); glutSolidCube(32)
+    glColor3f(0.15,0.15,0.18); solid_cuboid(32,18,11)
     glPopMatrix()
+    # Chest armour
     glPushMatrix(); glTranslatef(0,0,34)
-    glColor3f(0.10,0.10,0.12); glScalef(1.05,0.58,1.1); glutSolidCube(34)
+    glColor3f(0.10,0.10,0.12); solid_cuboid(36,20,37)
     glColor3f(0.0,0.85,1.0)
     for zoff in (6,14):
         glPushMatrix(); glTranslatef(0,-11,zoff-17); solid_cuboid(30,2,2); glPopMatrix()
     glPopMatrix()
+    # Shoulders
     for sx in (-20,20):
         glPushMatrix(); glTranslatef(sx,0,48)
-        glColor3f(0.12,0.12,0.14); gluSphere(gluNewQuadric(),10,8,8)
+        glColor3f(0.12,0.12,0.14); gluSphere(q,10,8,8)
         glColor3f(0.0,0.85,1.0); q_w=gluNewQuadric(); gluQuadricDrawStyle(q_w,GLU_LINE); gluSphere(q_w,10.5,6,6)
         glPopMatrix()
     for sx in (-20,20):
@@ -411,11 +422,13 @@ def draw_player():
         glPushMatrix(); glTranslatef(sx,0,42)
         glColor3f(0.05,0.05,0.06); solid_cuboid(10,10,8)
         glPopMatrix()
+    # Head
     glPushMatrix(); glTranslatef(0,0,60)
-    glColor3f(0.10,0.10,0.12); gluSphere(gluNewQuadric(),14,12,12)
+    glColor3f(0.10,0.10,0.12); gluSphere(q,14,12,12)
     glTranslatef(0,-12,-2); glColor3f(1.0,0.45,0.0)
-    glScalef(1.1,0.25,0.55); glutSolidCube(18)
+    solid_cuboid(20,5,10)   # visor
     glPopMatrix()
+    # Gun
     glPushMatrix(); glTranslatef(15,-8,44); glRotatef(90,1,0,0)
     glColor3f(0.12,0.12,0.12); gluCylinder(q,5,4,65,10,1)
     glColor3f(0.18,0.18,0.18); gluCylinder(q,7,7,30,10,1)
@@ -443,14 +456,9 @@ KIND_SKIN  = {
 def spawn_zombie(kind='normal'):
     ang  = random.uniform(0,2*math.pi)
     dist = GRID*random.uniform(0.88,0.96)
-    hp = KIND_HP[kind]
-    
-    if difficulty == "EASY": 
-        if kind == 'boss1': hp = 200
-        elif kind == 'boss2': hp = 300
-        elif kind == 'normal': hp = 4   
-        else: hp = max(1, hp // 2)
-        
+    hp   = KIND_HP[kind]
+    if difficulty == "EASY":
+        hp = max(1, hp // 2)   # all enemies half HP on Easy
     enemies.append({
         'x':dist*math.cos(ang),'y':dist*math.sin(ang),'z':0,
         'hp':hp,'max_hp':hp,
@@ -467,16 +475,19 @@ def draw_zombie(e):
     glRotatef(math.degrees(math.atan2(dy,dx))-90,0,0,1)
     glScalef(sc,sc,sc)
     swing=18*math.sin(anim)
+    # Legs
     for side,lsw in ((-7,swing),(7,-swing)):
         glPushMatrix(); glTranslatef(side,0,0); glRotatef(lsw,1,0,0)
         glColor3f(*cloth); gluCylinder(q,4.5,3.5,27,7,1)
         glTranslatef(0,0,-4); glColor3f(0.12,0.08,0.05); solid_cuboid(9,12,6)
         glPopMatrix()
+    # Torso
     glPushMatrix(); glTranslatef(0,0,27); glRotatef(-30,1,0,0)
-    glColor3f(*skin); glScalef(0.95,0.50,1.05); glutSolidCube(30)
+    glColor3f(*skin); solid_cuboid(29,15,32)   # replaces glutSolidCube(30)
     glColor3f(skin[0]*0.6,skin[1]*0.6,skin[2]*0.6)
     for rib in range(3):
         glPushMatrix(); glTranslatef(0,-9,rib*6-4); solid_cuboid(24,3,3); glPopMatrix()
+    # Arms
     for side,asw in ((-16,-swing*0.6-20),(16,swing*0.6-20)):
         glPushMatrix(); glTranslatef(side,0,6); glRotatef(asw,1,0,0)
         glColor3f(*skin); gluCylinder(q,4,2.5,30,7,1)
@@ -484,17 +495,18 @@ def draw_zombie(e):
         for c in range(3):
             glPushMatrix(); glRotatef((c-1)*25,0,1,0); gluCylinder(q,1.5,0.2,10,5,1); glPopMatrix()
         glPopMatrix()
+    # Head
     glPushMatrix(); glTranslatef(0,0,30)
     glColor3f(*skin); gluCylinder(q,5,4,10,8,1)
-    glTranslatef(0,0,10); gluSphere(gluNewQuadric(),13,10,10)
+    glTranslatef(0,0,10); gluSphere(q,13,10,10)
     eye_col=(1.0,0.3,0.0) if kind in ('boss1','boss2') else (0.7,1.0,0.1)
     for ex in (-5,5):
-        glPushMatrix(); glTranslatef(ex,-11,1); glColor3f(*eye_col); gluSphere(gluNewQuadric(),2.8,6,6); glPopMatrix()
+        glPushMatrix(); glTranslatef(ex,-11,1); glColor3f(*eye_col); gluSphere(q,2.8,6,6); glPopMatrix()
     if kind in ('boss1','boss2'):
         for hx in (-9,9):
             glPushMatrix(); glTranslatef(hx,0,10); glColor3f(0.12,0.04,0.04); gluCylinder(q,3.5,0.4,20,6,1); glPopMatrix()
     if kind=='boss2':
-        glTranslatef(0,-11,-2); glColor3f(0.85,0.85,0.75); glScalef(0.9,0.2,0.7); glutSolidCube(18)
+        glTranslatef(0,-11,-2); glColor3f(0.85,0.85,0.75); solid_cuboid(16,4,13)  # jaw plate
     glPopMatrix(); glPopMatrix()
     glPopMatrix()
     _draw_hp_bar(e['x'],e['y'],e['z']+90*sc,e['hp'],e['max_hp'])
@@ -792,7 +804,7 @@ def _find_target(e):
 def game_logic():
     global phase_timer,wave_phase,enemies_to_spawn,spawn_timer
     global player_hp,base_hp,score,kills,wood
-    global speed_boost_timer,speed_boost_dur,game_state,wall_cap
+    global speed_boost_timer,game_state,wall_cap
     global ult_cooldown, ult_active, ult_anim_timer
     global pending_powerups
 
@@ -832,7 +844,7 @@ def game_logic():
                 if kind=='health':
                     player_hp=min(player_hp+2,player_max_hp)
                 elif kind=='speed':
-                    speed_boost_dur=1000; speed_boost_timer=speed_boost_dur
+                    speed_boost_timer=1000
                 elif kind=='build':
                     wall_cap=min(wall_cap+1,8); wood=min(wood+2,wall_cap)
             pending_powerups=[]
@@ -914,16 +926,11 @@ def game_logic():
         pdx=player_pos[0]-p[0]; pdy=player_pos[1]-p[1]
         if math.sqrt(pdx*pdx+pdy*pdy)<32:
             if wave_phase=="DAY":
-                # Queue the effect — it activates when night begins
-                pending_powerups.append(p[2])
+                pending_powerups.append(p[2])  # queue for night
             else:
-                # Night: apply immediately
-                if p[2]=='health':
-                    player_hp=min(player_hp+2,player_max_hp)
-                elif p[2]=='speed':
-                    speed_boost_dur=1000; speed_boost_timer=speed_boost_dur
-                elif p[2]=='build':
-                    wall_cap=min(wall_cap+1,8); wood=min(wood+2,wall_cap)
+                if p[2]=='health':   player_hp=min(player_hp+2,player_max_hp)
+                elif p[2]=='speed':  speed_boost_timer=1000
+                elif p[2]=='build':  wall_cap=min(wall_cap+1,8); wood=min(wood+2,wall_cap)
             powerups.remove(p); continue
         if p[3]>POWERUP_LIFE: powerups.remove(p)
 
