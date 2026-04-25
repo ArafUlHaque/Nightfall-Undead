@@ -8,7 +8,7 @@ import random
 #  CONSTANTS
 # ═══════════════════════════════════════════════════════════
 WIN_W, WIN_H   = 1000, 800
-GRID           = 600
+GRID           = 800
 DAY_DURATION   = 1200
 NIGHT_DURATION = 900 
 BULLET_SPEED   = 20.0
@@ -73,7 +73,10 @@ powerups = []
 
 # Speed-boost
 speed_boost_timer = 0
-speed_boost_dur   = 0    
+speed_boost_dur   = 0
+
+# Pending powerups collected during DAY phase (applied when night starts)
+pending_powerups = []
 
 # Ultimate Ability
 ult_cooldown = 0
@@ -633,10 +636,14 @@ def draw_hud():
     if wave_phase=="DAY":
         draw_text(WIN_W//2-100,WIN_H-26,f"Night in: {rem//60+1}s",      color=(1.0,0.7,0.2))
         draw_text(WIN_W//2-100,WIN_H-50,"Fortify & grab pickups!",       color=(0.8,0.5,0.1))
+        if pending_powerups:
+            names = {'health':'HP+2','speed':'Speed','build':'Build'}
+            queued = ', '.join(names.get(k,k) for k in pending_powerups)
+            draw_text(WIN_W//2-100,WIN_H-74,f"Queued for night: {queued}", color=(0.4,1.0,0.6))
     else:
         draw_text(WIN_W//2-100,WIN_H-26,f"Enemies left: {enemies_to_spawn+len(enemies)}", color=(1.0,0.3,0.3))
 
-    cam_hint = "Arrows:orbit camera  C:toggle view"
+    cam_hint = "C:toggle 1st/3rd-person"
     draw_text(12,14,f"WASD:move  LClick:shoot  E:wall  X:Ultimate  I:invincible  {cam_hint}",
               font=GLUT_BITMAP_HELVETICA_12,color=(0.6,0.6,0.6))
 
@@ -749,6 +756,7 @@ def reset_game():
     global score,wood,kills,base_hp,speed_boost_timer,speed_boost_dur
     global game_state,first_person,invincible,wall_cap,rain_drops
     global ult_cooldown, ult_active, ult_anim_timer, ult_fires
+    global pending_powerups
 
     player_pos=[0.0,-200.0,20.0]; player_angle=0.0
     player_hp=5; player_speed=9.0
@@ -758,7 +766,7 @@ def reset_game():
     score=0; wood=5; kills=0; base_hp=10
     speed_boost_timer=0; speed_boost_dur=0
     first_person=False; invincible=False; wall_cap=5
-    rain_drops=[]
+    rain_drops=[]; pending_powerups=[]
     game_state="PLAYING"
     
     ult_cooldown = 0
@@ -785,7 +793,8 @@ def game_logic():
     global phase_timer,wave_phase,enemies_to_spawn,spawn_timer
     global player_hp,base_hp,score,kills,wood
     global speed_boost_timer,speed_boost_dur,game_state,wall_cap
-    global ult_cooldown, ult_active, ult_anim_timer  
+    global ult_cooldown, ult_active, ult_anim_timer
+    global pending_powerups
 
     if game_state!="PLAYING": return
 
@@ -818,6 +827,15 @@ def game_logic():
         if phase_timer>=DAY_DURATION:
             wave_phase="NIGHT"; phase_timer=0
             enemies_to_spawn=wave_spawn_count(wave)
+            # Apply powerups that were collected during the day
+            for kind in pending_powerups:
+                if kind=='health':
+                    player_hp=min(player_hp+2,player_max_hp)
+                elif kind=='speed':
+                    speed_boost_dur=1000; speed_boost_timer=speed_boost_dur
+                elif kind=='build':
+                    wall_cap=min(wall_cap+1,8); wood=min(wood+2,wall_cap)
+            pending_powerups=[]
     else:
         spawn_timer+=1
         if spawn_timer>=SPAWN_INTERVAL and enemies_to_spawn>0:
@@ -895,14 +913,17 @@ def game_logic():
         p[3]+=1
         pdx=player_pos[0]-p[0]; pdy=player_pos[1]-p[1]
         if math.sqrt(pdx*pdx+pdy*pdy)<32:
-            if p[2]=='health':
-                player_hp=min(player_hp+2,player_max_hp)
-            elif p[2]=='speed':
-                speed_boost_dur= 1000
-                speed_boost_timer=speed_boost_dur
-            elif p[2]=='build':
-                wall_cap=min(wall_cap+1,8)   
-                wood=min(wood+2,wall_cap)
+            if wave_phase=="DAY":
+                # Queue the effect — it activates when night begins
+                pending_powerups.append(p[2])
+            else:
+                # Night: apply immediately
+                if p[2]=='health':
+                    player_hp=min(player_hp+2,player_max_hp)
+                elif p[2]=='speed':
+                    speed_boost_dur=1000; speed_boost_timer=speed_boost_dur
+                elif p[2]=='build':
+                    wall_cap=min(wall_cap+1,8); wood=min(wood+2,wall_cap)
             powerups.remove(p); continue
         if p[3]>POWERUP_LIFE: powerups.remove(p)
 
@@ -1004,10 +1025,7 @@ def special_key(key,x,y):
         elif key==GLUT_KEY_DOWN: diff_sel=(diff_sel+1)%2
         glutPostRedisplay(); return
 
-    if key==GLUT_KEY_LEFT:  cam_angle_h-=5
-    elif key==GLUT_KEY_RIGHT: cam_angle_h+=5
-    elif key==GLUT_KEY_UP:   cam_angle_v=min(89,cam_angle_v+3)
-    elif key==GLUT_KEY_DOWN: cam_angle_v=max(5, cam_angle_v-3)
+    # Arrow keys do nothing during gameplay (3rd-person orbit removed)
     glutPostRedisplay()
 
 def mouse_click(button,state,x,y):
