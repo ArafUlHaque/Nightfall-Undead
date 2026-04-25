@@ -148,17 +148,11 @@ def solid_cube(size):
 def solid_cuboid(w, d, h):
     hw, hd = w/2, d/2
     glBegin(GL_QUADS)
-    glNormal3f(0,0,-1)
     glVertex3f(-hw,-hd,0); glVertex3f(hw,-hd,0); glVertex3f(hw,hd,0); glVertex3f(-hw,hd,0)
-    glNormal3f(0,0,1)
     glVertex3f(-hw,-hd,h); glVertex3f(-hw,hd,h); glVertex3f(hw,hd,h); glVertex3f(hw,-hd,h)
-    glNormal3f(0,-1,0)
     glVertex3f(-hw,-hd,0); glVertex3f(-hw,-hd,h); glVertex3f(hw,-hd,h); glVertex3f(hw,-hd,0)
-    glNormal3f(0,1,0)
     glVertex3f(-hw,hd,0); glVertex3f(hw,hd,0); glVertex3f(hw,hd,h); glVertex3f(-hw,hd,h)
-    glNormal3f(-1,0,0)
     glVertex3f(-hw,-hd,0); glVertex3f(-hw,hd,0); glVertex3f(-hw,hd,h); glVertex3f(-hw,-hd,h)
-    glNormal3f(1,0,0)
     glVertex3f(hw,-hd,0); glVertex3f(hw,-hd,h); glVertex3f(hw,hd,h); glVertex3f(hw,hd,0)
     glEnd()
 
@@ -632,7 +626,7 @@ def draw_ult_effects():
 #  HUD
 # ═══════════════════════════════════════════════════════════
 def draw_hud():
-    glDisable(GL_DEPTH_TEST)
+    glClear(GL_DEPTH_BUFFER_BIT)
     mode_tag = "[EASY]" if difficulty=="EASY" else "[NORMAL]"
     draw_text(12,WIN_H-26, f"Wave {wave} {mode_tag}  [{wave_phase}]",    color=(1.0,0.9,0.3))
     draw_text(12,WIN_H-50, f"Base HP: {base_hp}/{base_max}",             color=(0.4,0.9,1.0))
@@ -675,11 +669,11 @@ def draw_hud():
     if is_paused:
         draw_text(WIN_W//2-40, WIN_H//2+40, "PAUSED", font=GLUT_BITMAP_TIMES_ROMAN_24, color=(1.0, 1.0, 0.2))
 
-    glEnable(GL_DEPTH_TEST)
+    
 
 # ─────────────── MENU SCREENS ───────────────
 def draw_main_menu():
-    glDisable(GL_DEPTH_TEST)
+    glClear(GL_DEPTH_BUFFER_BIT)
     draw_text(WIN_W//2-210,WIN_H//2+110,"NIGHTFALL: UNDEAD SIEGE",
               font=GLUT_BITMAP_TIMES_ROMAN_24,color=(0.9,0.15,0.1))
     draw_text(WIN_W//2-140,WIN_H//2+65,"Defend the tower. Survive the night.",
@@ -693,10 +687,10 @@ def draw_main_menu():
 
     draw_text(WIN_W//2-160,WIN_H//2-90,"UP/DOWN to select,  ENTER to confirm",
               font=GLUT_BITMAP_HELVETICA_12,color=(0.5,0.5,0.5))
-    glEnable(GL_DEPTH_TEST)
+    
 
 def draw_difficulty_menu():
-    glDisable(GL_DEPTH_TEST)
+    glClear(GL_DEPTH_BUFFER_BIT)
     draw_text(WIN_W//2-140,WIN_H//2+80,"Select Difficulty",
               font=GLUT_BITMAP_TIMES_ROMAN_24,color=(1.0,0.85,0.2))
 
@@ -713,16 +707,16 @@ def draw_difficulty_menu():
 
     draw_text(WIN_W//2-160,WIN_H//2-110,"UP/DOWN to select,  ENTER to confirm",
               font=GLUT_BITMAP_HELVETICA_12,color=(0.5,0.5,0.5))
-    glEnable(GL_DEPTH_TEST)
+    
 
 def draw_game_over_screen():
-    glDisable(GL_DEPTH_TEST)
+    glClear(GL_DEPTH_BUFFER_BIT)
     draw_text(WIN_W//2-130,WIN_H//2+60,"GAME OVER",
               font=GLUT_BITMAP_TIMES_ROMAN_24,color=(1.0,0.1,0.1))
     draw_text(WIN_W//2-130,WIN_H//2+10,f"Final Score: {score}",color=(1.0,0.9,0.3))
     draw_text(WIN_W//2-130,WIN_H//2-30,f"Wave reached: {wave}",color=(0.6,0.8,1.0))
     draw_text(WIN_W//2-130,WIN_H//2-70,"R : restart    M : main menu",color=(0.8,0.8,0.8))
-    glEnable(GL_DEPTH_TEST)
+    
 
 # ═══════════════════════════════════════════════════════════
 #  CAMERA

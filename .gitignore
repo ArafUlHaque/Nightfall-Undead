@@ -4,3 +4,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.docx
+
+ballsInABox.py
+bulletFrenzy.py
+lab_assignment3.py
+tempCodeRunnerFile.py
